@@ -108,8 +108,8 @@ subsetter <- function(
   df <- df[df$filt %in% filt & df$var %in% var & df$w %in% w & df$n %in% n & df$d %in% d & df$act %in% act & df$scale %in% scale & df$norm %in% norm, ]
 }
 
-l$scale_diff <- abs(l$w - l$scale)
-l$R2[l$R2 < -2] <- NA
+l$scale_diff <- abs(l$w - l$scale) #calculate the absolute scale difference
+l$R2[l$R2 < -2] <- NA #consider any R2 values less than -2 to be non-converged
 
 
 #### RPART ANALYSIS ####

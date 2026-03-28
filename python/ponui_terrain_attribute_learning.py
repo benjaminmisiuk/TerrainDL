@@ -44,27 +44,27 @@ def conv_block(input_layer, filters=32, depth=1, kernel=3, activation=keras.laye
 
 # define variables for the model run(s)
 
-# these variables are not iterated
+# these variables are not iterated, and are generally fixed unless you want to manipulate the study
 trial = 'ponui_11000_81' # the name of the run
 gis_dir = 'D:/GIS/Ponui/' # GIS directory containing a folder with DTM raster patches
-dtm_dir = 'D:/GitHub/terrain_learning/python/out/'
-out_dir = 'D:/GIS/Ponui/terrain_NN_learning/individual_tests/' # directory to write the terrain prediction
+dtm_dir = 'D:/GitHub/terrain_learning/python/out/' # directory containing 5 m DTM
+out_dir = 'D:/GIS/Ponui/terrain_NN_learning/individual_tests/' # directory to write the terrain predictions
 results_dir = 'D:/GIS/Ponui/results/individual_tests/' # directory to write numerical results
 temp_dir = 'D:/python/temp/' # indicate a temporary directory
 w = 81 # the size of input images
 act = keras.layers.PReLU  # activation function
 act_name = 'PReLU'  # activation function name
 
-# these are hyperparameters that are iterated but not loopable
+# these are hyperparameters that are iterated in our study but are not loopable
 # i.e. you have to change them then run the code again
 scale = 3 # scale of the terrain calc
 n = 10000 # sample size
-norm = 'sdmean' # how should normalization be performed for image patches
-#norm = ['normzero', 'normmean', 'global', 'sdmean']
-# normzero is 0-1 local normalization
-# normmean is mean centring with no scaling
-# global is 0-1 global normalization
-# sdmean is mean centred and normalized -1 to 1
+norm = 'sdmean' # how should normalization be performed for image patches?
+#norm can also be:
+# "normzero" for 0-1 local normalization
+# "normmean" for mean centring with no scaling (note, this will sometimes fail to converge)
+# "global" for -1 to 1 global normalization
+# "sdmean" for mean centred and normalized -1 to 1
 
 # these are hyperparameters that are loopable
 sizes = [81] # size of the input

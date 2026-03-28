@@ -1,7 +1,7 @@
 library(MultiscaleDTM)
 library(terra)
 
-#load the raster
+#load the 5 m raster from the correct file path
 r <- rast('D:/GIS/Ponui/layers/ponui_dtm_setnull_5m_ext.tif')
 plot(r)
 
