@@ -15,10 +15,7 @@ This script is used to sample the DTM and terrain parameters spatially to produc
 This script is used to train models to predict terrain parameters from DTM patches. The training dataset is generated using R/patches.R (above). The resulting predictions are output in tabular and spatial (raster) format.
 
 * **R/results.R** <br>
-This script is used to analyze the results. It loads in predictions, calculates performance statistics, runs a CART (rpart) model, and produces the figures presented in the manuscript.
-
-* **R/Rdata/results.Rdata** <br>
-These are the results from our analysis. They may be opened with R and exported to a tabular format, or can be viewed and analyzed within R.
+This script is used to analyze the results. It loads in predictions, calculates performance statistics, runs a CART (rpart) model, and produces the figures presented in the manuscript. The results from our analysis are provided within R/Rdata/results.Rdata. They may be opened with R and exported to a tabular format, or can be viewed and analyzed with the script.
 
 ### Usage
 Follow these steps to run the code and reproduce our results.
