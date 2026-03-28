@@ -5,7 +5,7 @@ This repository provides the code used for the analysis detailed in the manuscri
 This repository includes both R and Python code. The scripts are described below, and are generally run in this order to reproduce the analysis.
 
 * **R/terrain_attributes.R** <br>
-This script is used to generate terrain parameters from the resampled 5 m Ponui Island DTM. The DTM is made available by Toitū Te Whenua Land Information New Zealand. <br> <br>
+This script is used to generate terrain parameters from the resampled 5 m Ponui Island DTM (provided within data/ponui_dtm_setnull_5m.tif). The original DTM is made available by Toitū Te Whenua Land Information New Zealand. <br> <br>
 *Toitū Te Whenua Land Information New Zealand, 2021. Auckland North LiDAR 1m DEM (2016-2018). https://registry.opendata.aws/nz-elevation/* <br>  
 
 * **R/patches.R** <br>
