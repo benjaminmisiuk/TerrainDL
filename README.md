@@ -3,7 +3,7 @@ Code for: Evaluating the deep learning of terrain information from elevation dat
 
 This repository provides the code used for the analysis detailed in the manuscript **Evaluating the deep learning of terrain information from elevation data**, by Benjamin Misiuk, Alexandre Schimel, and Vincent Lecours.
 
-# Code
+## Code
 This repository includes both R and Python code. The scripts are described below, and are generally run in this order to reproduce the analysis.
 
 **R/terrain_attributes.R**
