@@ -22,13 +22,17 @@ Follow these steps to run the code and reproduce our results.
 
 1. Download the DTM data available at: https://registry.opendata.aws/nz-elevation/. Resample the 1 m grid to 5 m using mean aggregation (this can be completed in ArcGIS, QGIS, or with the terra package in R). Expand the extent of the 5 m DTM by 100 cells on all sides. We do not provide the original DTM here because of file size, but the 5 m DTM is contained within data/ponui_dtm_setnull_5m.tif <br>
 
-2. Open the R/terrain_attributes.R script. Indicate the file path to the 5 m raster, and the output filepaths at which to save the terrain parameters. Run the script. <br>
+2. Open the R/terrain_attributes.R script. Indicate the file path to the 5 m raster, and the output filepaths at which to save the terrain parameters. Run the script. An example of the terrain parameters generated within R are shown below. <br>
 
-#SHOW EXAMPLES
+<img width="703" height="489" alt="image" src="https://github.com/user-attachments/assets/4e54521e-5ca3-47e7-9bae-b91153d0531c" />
+<br>
+<br>
 
-3. Open the R/patches.R script. Indicate the file path to the 5 m DTM and the terrain parameters from the previous step. Provide filepaths for the outputs. Run the script in order to generate spatially random samples over the extent of the rasters, and to extract elevation patches around each sampled point. These are the inputs to the CNN models. <br>
+3. Open the R/patches.R script. Indicate the file path to the 5 m DTM and the terrain parameters from the previous step. Provide filepaths for the outputs. Run the script in order to generate spatially random samples over the extent of the rasters, and to extract elevation patches around each sampled point. These are the inputs to the CNN models. Below is the examplen of the spatial sampling provided in the R script. <br>
 
-#ADD EXAMPLE FROM THE SCRIPT THAT SHOWS THE SINGLE PATCHIFYING
+<img width="703" height="489" alt="image" src="https://github.com/user-attachments/assets/26d63138-b782-4e27-ada8-5a23224fd2fe" />
+<br>
+<br>
 
 4. Open Python/ponui_terrain_attribute_learning.py. Configure the input and output directories and hyperparameters for a given set of model runs. Suggest starting with a single set of hyper-parameters to ensure the code works. This is configured near the beginning of the script like below.
 
@@ -131,7 +135,7 @@ l$scale_diff <- abs(l$w - l$scale) #calculate the absolute scale difference
 l$R2[l$R2 < -2] <- NA #consider any R2 values less than -2 to be non-converged
 ```
 
-After the results have been loaded, any parts of the analysis can be performed by using the `subsetter()` function to select a slice of the results to view. An example below shows the generation of Figure 8 in the manuscript.
+After the results have been loaded, any parts of the analysis can be performed by using the `subsetter()` function to isolate a slice of the results and passing that slice to the analysis or plotting code. An example below shows the generation of Figure 8 in the manuscript.
 
 ```
 df <- subsetter(df = l, filt = 32, d = 2, norm = c('normzero', 'global', 'sdmean'), scale = 3, w = 3)
