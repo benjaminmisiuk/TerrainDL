@@ -22,7 +22,7 @@ Follow these steps to run the code and reproduce our results.
 
 1. Download the DTM data available at: https://registry.opendata.aws/nz-elevation/. Resample the 1 m grid to 5 m using mean aggregation (this can be completed in ArcGIS, QGIS, or with the terra package in R). Expand the extent of the 5 m DTM by 100 cells on all sides. We do not provide the original DTM here because of file size, but the 5 m DTM is contained within data/ponui_dtm_setnull_5m.tif <br>
 
-2. Open the R/terrain_attributes.R script. Indicate the file path to the 5 m raster, and the output filepaths at which to save the terrain parameters. Run the script. An example of the terrain parameters generated within R are shown below. <br>
+2. Open the R/terrain_attributes.R script. Indicate the file path to the 5 m raster, and the output filepaths at which to save the terrain parameters. Run the script. An example of the terrain parameters generated using the [MultiscaleDTM package](https://github.com/ailich/MultiscaleDTM) in R are shown below. <br>
 
 ```
 library(MultiscaleDTM)
