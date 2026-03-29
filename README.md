@@ -24,11 +24,70 @@ Follow these steps to run the code and reproduce our results.
 
 2. Open the R/terrain_attributes.R script. Indicate the file path to the 5 m raster, and the output filepaths at which to save the terrain parameters. Run the script. An example of the terrain parameters generated within R are shown below. <br>
 
+```
+library(MultiscaleDTM)
+library(terra)
+
+#load the raster
+r <- rast('D:/GIS/Ponui/layers/ponui_dtm_setnull_5m_ext.tif')
+plot(r)
+
+#SCALE 3
+
+#qfit
+q3 <- Qfit(r)
+plot(q3)
+writeRaster(q3, paste0('D:/GIS/Ponui/layers/', names(q3), '_3.tif'))
+```
+
 <img width="703" height="489" alt="image" src="https://github.com/user-attachments/assets/4e54521e-5ca3-47e7-9bae-b91153d0531c" />
 <br>
 <br>
 
-3. Open the R/patches.R script. Indicate the file path to the 5 m DTM and the terrain parameters from the previous step. Provide filepaths for the outputs. Run the script in order to generate spatially random samples over the extent of the rasters, and to extract elevation patches around each sampled point. These are the inputs to the CNN models. Below is the examplen of the spatial sampling provided in the R script. <br>
+3. Open the R/patches.R script. Indicate the file path to the 5 m DTM and the terrain parameters from the previous step. Provide filepaths for the outputs. Run the script in order to generate spatially random samples over the extent of the rasters, and to extract elevation patches around each sampled point. These are the inputs to the CNN models. Below is the example of the spatial sampling provided in the R script. <br>
+
+```
+library(terra)
+
+#choose the scale of terrain attribute to load in
+w=9
+
+#load DTM raster
+dem <- rast('D:/GIS/Ponui/layers/ponui_dtm_setnull_5m.tif')
+
+#load terrain attributes calculated with "terrain_attributes.R" script
+stack <- c(
+  rast(paste0('D:/GIS/Ponui/layers/qslope_', w, '.tif')),
+  rast(paste0('D:/GIS/Ponui/layers/qeastness_', w, '.tif')),
+  rast(paste0('D:/GIS/Ponui/layers/meanc_', w, '.tif')),
+  rast(paste0('D:/GIS/Ponui/layers/tpi_', w, '.tif')),
+  rast(paste0('D:/GIS/Ponui/layers/adjsd_', w, '.tif'))
+)
+
+#visualize
+plot(stack)
+
+#take a random sample of points
+p <- spatSample(stack, 11000, na.rm = TRUE, as.points = TRUE)
+plot(dem)
+points(p, col = 'red')
+
+#extract raster patches at points
+dim <- 81 #set size of patches
+out_dir <- 'D:/GIS/Ponui/patches/w_9' #choose an output directory
+
+#these lines perform one iteration of "patchification" for sanity check
+p_i <- p[sample(1:length(p), 1)]
+r_i <- trim(rasterize(p_i, dem))
+e <- extend(r_i, (dim-1)/2, fill = 0)
+e
+plot(e)
+points(p_i)
+
+m <- crop(dem, e)
+plot(m)
+points(p)
+```
 
 <img width="703" height="489" alt="image" src="https://github.com/user-attachments/assets/26d63138-b782-4e27-ada8-5a23224fd2fe" />
 <br>
