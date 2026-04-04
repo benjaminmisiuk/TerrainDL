@@ -17,17 +17,6 @@ R2 <- function(y, y_h, na.rm = FALSE){
   1 - (SSres/SStot)
 }
 
-#RMSE function
-RMSE <- function(y, y_h, na.rm = FALSE){
-  if(na.rm){
-    na <- is.na(y_h)|is.na(y)
-    y_h <- y_h[!na]
-    y <- y[!na]
-  }
-  
-  sqrt(mean((y - y_h)^2))
-}
-
 #if not set
 #setwd('C:/Users/benja/Documents/GitHub/terrain_learning/R')
 
