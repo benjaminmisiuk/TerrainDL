@@ -44,32 +44,34 @@ def conv_block(input_layer, filters=32, depth=1, kernel=3, activation=keras.laye
 
 # define variables for the model run(s)
 
-# these variables are not iterated, and are generally fixed unless you want to manipulate the study
-trial = 'ponui_11000_81' # the name of the run
-gis_dir = 'D:/GIS/Ponui/' # GIS directory containing a folder with DTM raster patches
-dtm_dir = 'D:/GitHub/terrain_learning/python/out/' # directory containing 5 m DTM
-out_dir = 'D:/GIS/Ponui/terrain_NN_learning/individual_tests/' # directory to write the terrain predictions
-results_dir = 'D:/GIS/Ponui/results/individual_tests/' # directory to write numerical results
-temp_dir = 'D:/python/temp/' # indicate a temporary directory
-w = 81 # the size of input images
+# these are local file paths
+trial = 'ponui_11000_81'  # the name of the run
+gis_dir = 'D:/GIS/Ponui/REVISION/'  # GIS directory containing a folder with all GIS files
+dtm_dir = 'D:/GitHub/terrain_learning/python/out/' # directory to write the filled DTM as .npz
+out_dir = 'D:/GIS/Ponui/REVISION/terrain_NN_learning/'  # directory to write the terrain prediction
+results_dir = 'D:/GIS/Ponui/REVISION/results/'  # directory to write numerical results
+temp_dir = 'D:/python/temp/'  # indicate a temporary directory
+
+# there are variables that are not currently iterated
+w = 81  # the size of input images
 act = keras.layers.PReLU  # activation function
 act_name = 'PReLU'  # activation function name
+eps = 1e-8
 
 # these are hyperparameters that are iterated in our study but are not loopable
 # i.e. you have to change them then run the code again
 scale = 3 # scale of the terrain calc
-n = 10000 # sample size
+n = 100 # sample size
 norm = 'sdmean' # how should normalization be performed for image patches?
 #norm can also be:
 # "normzero" for 0-1 local normalization
-# "normmean" for mean centring with no scaling (note, this will sometimes fail to converge)
 # "global" for -1 to 1 global normalization
 # "sdmean" for mean centred and normalized -1 to 1
 
 # these are hyperparameters that are loopable
-sizes = [81] # size of the input
+sizes = [3, 9, 27, 81] # size of the input
 depth = [1, 2, 3]  # depth of the CNN
-filters = [16, 32, 64, 128]  # number of filters
+filters = [16, 64, 128]  # number of filters
 response = ['qslope', 'qeastness', 'meanc', 'tpi', 'adjSD'] # target variable
 
 # run analysis with the selected hyperparameters
@@ -135,21 +137,19 @@ for w2 in sizes:
     if norm == 'normzero':
         # local 0-1 norm for each DTM image patch
         for i in range(x_train_glob.shape[0]):
-            x_train_glob[i] = (x_train_glob[i] - np.min(x_train_glob[i])) / (np.max(x_train_glob[i]) - np.min(x_train_glob[i]))
-    elif norm == 'normmean':
-        # mean centre each image patch but no norm
-        for i in range(x_train_glob.shape[0]):
-            x_train_glob[i] = (x_train_glob[i] - np.mean(x_train_glob[i]))
+            x_train_glob[i] = (x_train_glob[i] - np.min(x_train_glob[i])) / (
+                    np.max(x_train_glob[i]) - np.min(x_train_glob[i]) + eps)
     elif norm == 'global':
         #normalize all data -1 to 1
-        x_train_glob = (2 * ((x_train_glob - mins_glob) / (maxs_glob - mins_glob))) - 1
+        x_train_glob = (2 * ((x_train_glob - mins_glob) / (maxs_glob - mins_glob + eps))) - 1
     elif norm == 'sdmean':
         # first mean center
         x_train_glob -= np.mean(x_train_glob, axis=(1, 2), keepdims=True)
         # get average range of centered data
         mean_range = np.mean(np.max(x_train_glob, axis=(1, 2)) - np.min(x_train_glob, axis=(1, 2)))
         # rescale all data to range of 2 (an average range of -1 to 1)
-        x_train_glob *= (2 / mean_range)
+        x_train_glob *= (2 / (mean_range + eps))
+
 
     # CNN TRAINING LOOP
 
@@ -169,12 +169,24 @@ for w2 in sizes:
 
                     # define keras CNN model
                     input = keras.Input(shape=(x_train_glob.shape[1], x_train_glob.shape[2], 1))
-                    c1 = conv_block(input, depth=d, filters=filt, kernel=3, activation=act)
-                    out = layers.Flatten(name='out')(c1)
-                    out = layers.Dense(1)(out)
-                    out = keras.activations.sigmoid(out)
 
-                    model = keras.Model(inputs=[input], outputs=[out])
+                    c1 = conv_block(input, depth=d, filters=filt, kernel=3, activation=act)
+                    c2 = conv_block(input, depth=d, filters=filt, kernel=3, activation=act)
+                    c3 = conv_block(input, depth=d, filters=filt, kernel=3, activation=act)
+
+                    out1 = layers.Flatten(name='out1')(c1)
+                    out2 = layers.Flatten(name='out2')(c2)
+                    out3 = layers.Flatten(name='out3')(c3)
+
+                    out1 = layers.Dense(1)(out1)
+                    out2 = layers.Dense(1)(out2)
+                    out3 = layers.Dense(1)(out3)
+
+                    out1 = keras.activations.sigmoid(out1)
+                    out2 = keras.activations.sigmoid(out2)
+                    out3 = keras.activations.sigmoid(out3)
+
+                    model = keras.Model(inputs=[input], outputs=[out1, out2, out3])
                     model.compile(optimizer='adam', loss=keras.losses.MeanSquaredError())
                     es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=25, min_delta=0.0001,
                                        restore_best_weights=True)
@@ -182,7 +194,7 @@ for w2 in sizes:
                     # train the model
                     history = model.fit(
                         x=[x_train_glob],
-                        y=[y_np[:, 0]],
+                        y=[y_np[:, 0], y_np[:, 0], y_np[:, 0]],
                         epochs=100,
                         batch_size=32,
                         validation_split=0.1,
@@ -192,18 +204,19 @@ for w2 in sizes:
 
                     # check if there is a full DTM to use for prediction
                     # if not, read in DTM, fill no data, and save for future use
-                    if not os.path.exists(dtm_dir + "dtm.npz"):
+                    if not os.path.exists(dtm_dir + "dtm_agg.npz"):
+                        print("Filling and saving the DTM...")
                         # load the OG DTM raster
-                        r = rasterio.open(gis_dir + "layers/ponui_dtm_setnull_5m_ext.tif")
+                        r = rasterio.open(gis_dir + "layers/ponui_dtm_setnull_agg5_ext.tif")
                         r1 = r.read(1, masked=True)
                         mask = r.read_masks(1)
                         nodata = r.nodata
                         # fill no data out to raster edges for prediction
                         r1 = fillnodata(r1, max_search_distance=10000)
                         # save so we don't need to run this again
-                        np.savez(dtm_dir + "dtm.npz", r1=r1)
+                        np.savez(dtm_dir + "dtm_agg.npz", r1=r1)
 
-                    dtm = np.load(dtm_dir + "dtm.npz")
+                    dtm = np.load(dtm_dir + "dtm_agg.npz")
                     dtm = dtm['r1']
 
                     # format patches for prediction
@@ -239,15 +252,13 @@ for w2 in sizes:
                         # normalize each image in blocks according to the selected method for prediction
                         if norm == 'normzero':
                             for i in range(blocks.shape[0]):
-                                blocks[i] = (blocks[i] - np.min(blocks[i])) / (np.max(blocks[i]) - np.min(blocks[i]))
-                        elif norm == 'normmean':
-                            for i in range(blocks.shape[0]):
-                                blocks[i] = (blocks[i] - np.mean(blocks[i]))
+                                blocks[i] = (blocks[i] - np.min(blocks[i])) / (
+                                            np.max(blocks[i]) - np.min(blocks[i]) + eps)
                         elif norm == 'global':
-                            blocks = (2 * ((blocks - mins_glob) / (maxs_glob - mins_glob))) - 1
+                            blocks = (2 * ((blocks - mins_glob) / (maxs_glob - mins_glob + eps))) - 1
                         elif norm == 'sdmean':
                             blocks -= np.mean(blocks, axis=(1, 2), keepdims=True)
-                            # rescale to range of 2 (an average range of -1 to 1) using mean_range from above
+                            # rescale to range of 2 (an average range of -1 to 1)
                             blocks *= (2 / mean_range)
 
                         # predict using the model
@@ -277,14 +288,13 @@ for w2 in sizes:
 
                         if norm == 'normzero':
                             for i in range(blocks.shape[0]):
-                                blocks[i] = (blocks[i] - np.min(blocks[i])) / (np.max(blocks[i]) - np.min(blocks[i]))
-                        elif norm == 'normmean':
-                            for i in range(blocks.shape[0]):
-                                blocks[i] = (blocks[i] - np.mean(blocks[i]))
+                                blocks[i] = (blocks[i] - np.min(blocks[i])) / (
+                                            np.max(blocks[i]) - np.min(blocks[i]) + eps)
                         elif norm == 'global':
-                            blocks = (2 * ((blocks - mins_glob) / (maxs_glob - mins_glob))) - 1
+                            blocks = (2 * ((blocks - mins_glob) / (maxs_glob - mins_glob + eps))) - 1
                         elif norm == 'sdmean':
                             blocks -= np.mean(blocks, axis=(1, 2), keepdims=True)
+                            # rescale to range of 2 (an average range of -1 to 1)
                             blocks *= (2 / mean_range)
 
                         pred = model.predict([blocks], verbose=0)
@@ -295,7 +305,7 @@ for w2 in sizes:
 
                     # read in predictions and write to raster layers
                     # open the raster file containing the original data
-                    raw = rasterio.open(gis_dir + "layers/ponui_dtm_setnull_5m_ext.tif")
+                    raw = rasterio.open(gis_dir + "layers/ponui_dtm_setnull_agg5_ext.tif")
                     mask = raw.read_masks(1)
                     mask[mask != 0] = 1
                     # set the mask value
@@ -310,24 +320,46 @@ for w2 in sizes:
                             l.append(pred['pred'])
 
                     # concatenate the predictions
-                    l = np.concatenate(l)
-                    # reshape the concatenated predictions to match the original raster shape
-                    l = np.reshape(l, (dtm.shape[0] - w2, dtm.shape[1] - w2))
+                    l = np.concatenate(l, axis=1)
 
-                    # rescale the predictions to the original data range
+                    # rescale to original range
                     l = l * (mnmx[y_h][1] - mnmx[y_h][0]) + mnmx[y_h][0]
+                    l = np.squeeze(l, axis=2)
 
-                    # pad the resulting raster to match the original raster dimensions
-                    row_pad = np.ones(shape=(int(np.floor(w2 / 2)), l.shape[1]), dtype=l.dtype)
-                    l = np.append(row_pad, l, axis=0)
-                    l = np.append(l, np.ones(shape=(int(raw.shape[0] - l.shape[0]), l.shape[1]), dtype=l.dtype), axis=0)
+                    #extract individual model predictions and reshape to match the original raster shape
+                    l0 = l[0].reshape((dtm.shape[0] - w2, dtm.shape[1] - w2))
+                    l1 = l[1].reshape((dtm.shape[0] - w2, dtm.shape[1] - w2))
+                    l2 = l[2].reshape((dtm.shape[0] - w2, dtm.shape[1] - w2))
 
-                    col_pad = np.ones(shape=(l.shape[0], int(np.floor(w2 / 2))), dtype=l.dtype)
-                    l = np.append(col_pad, l, axis=1)
-                    l = np.append(l, np.ones(shape=(l.shape[0], int(raw.shape[1] - l.shape[1])), dtype=l.dtype), axis=1)
+                    # pad the resulting rasters to match the original raster dimensions
+                    row_pad = np.ones(shape=(int(np.floor(w2 / 2)), l0.shape[1]), dtype=l.dtype)
+
+                    l0 = np.append(row_pad, l0, axis=0)
+                    l0 = np.append(l0, np.ones(shape=(int(raw.shape[0] - l0.shape[0]), l0.shape[1]), dtype=l.dtype),
+                                   axis=0)
+                    l1 = np.append(row_pad, l1, axis=0)
+                    l1 = np.append(l1, np.ones(shape=(int(raw.shape[0] - l1.shape[0]), l1.shape[1]), dtype=l.dtype),
+                                   axis=0)
+                    l2 = np.append(row_pad, l2, axis=0)
+                    l2 = np.append(l2, np.ones(shape=(int(raw.shape[0] - l2.shape[0]), l2.shape[1]), dtype=l.dtype),
+                                   axis=0)
+
+                    col_pad = np.ones(shape=(l0.shape[0], int(np.floor(w2 / 2))), dtype=l.dtype)
+
+                    l0 = np.append(col_pad, l0, axis=1)
+                    l0 = np.append(l0, np.ones(shape=(l0.shape[0], int(raw.shape[1] - l0.shape[1])), dtype=l.dtype),
+                                   axis=1)
+                    l1 = np.append(col_pad, l1, axis=1)
+                    l1 = np.append(l1, np.ones(shape=(l1.shape[0], int(raw.shape[1] - l1.shape[1])), dtype=l.dtype),
+                                   axis=1)
+                    l2 = np.append(col_pad, l2, axis=1)
+                    l2 = np.append(l2, np.ones(shape=(l2.shape[0], int(raw.shape[1] - l2.shape[1])), dtype=l.dtype),
+                                   axis=1)
 
                     # apply the mask to the predictions
-                    l = l * mask
+                    l0 = l0 * mask
+                    l1 = l1 * mask
+                    l2 = l2 * mask
 
                     # define affine transformation and reference CRS
                     aff = rasterio.transform.from_origin(raw.bounds[0], raw.bounds[3], raw.res[0], raw.res[1])
@@ -342,22 +374,24 @@ for w2 in sizes:
                         dir_name,
                         'w',
                         driver='GTiff',
-                        height=l.shape[0],
-                        width=l.shape[1],
-                        count=1,
+                        height=l0.shape[0],
+                        width=l0.shape[1],
+                        count=3,
                         dtype=raw.read(1).dtype,
                         crs=ref,
                         transform=aff,
                         nodata=np.nan
                     )
                     # write the predicted values to the raster file
-                    cnn_ft.write(l, 1)
+                    cnn_ft.write(l0, 1)
+                    cnn_ft.write(l1, 2)
+                    cnn_ft.write(l2, 3)
                     cnn_ft.close()
 
                     # STATISTICAL ANALYSIS
 
                     # load original terrain attribute layer
-                    r = rasterio.open("D:/GIS/Ponui/layers/" + y_h + "_" + str(scale) + ".tif")
+                    r = rasterio.open(gis_dir + "layers/" + y_h + "_" + str(scale) + ".tif")
                     r1 = r.read(1)
 
                     mask = r.read_masks(1)
@@ -371,20 +405,28 @@ for w2 in sizes:
                     r1 = r1.astype(float)
                     r1[mask == 0] = np.nan
                     r1 = r1.flatten()
-                    l = l.flatten()
+
+                    l0 = l0.flatten()
+                    l1 = l1.flatten()
+                    l2 = l2.flatten()
 
                     #make sure we've got shape and dimensions correct
-                    if len(l) != len(r1):
+                    if len(l0) != len(r1):
                         print("Lengths don't match")
                         sys.exit()
 
                     # bind l and r1 and remove rows with nans
-                    all = np.column_stack((r1, l))
+                    all = np.column_stack((r1, l0, l1, l2))
                     all = all[~np.isnan(all).any(axis=1)]
 
                     # write the results
+                    run_dir = results_dir + "scale" + str(scale) + "_" + norm + "/"
+                    if not os.path.exists(run_dir):
+                        os.makedirs(run_dir)
+
                     np.savetxt(
-                        results_dir + "scale" + str(scale) + "_" + norm + "/" + y_h + "_" + str(w) + "_" + str(w2) + "_" + str(n) + "_" + str(d) + "_" + str(
+                        run_dir + y_h + "_" + str(w) + "_" + str(
+                            w2) + "_" + str(n) + "_" + str(d) + "_" + str(
                             filt) + "_" + act_name + ".csv",
                         all,
                         delimiter=","
@@ -393,4 +435,5 @@ for w2 in sizes:
                     # cleanup
                     del (r, r1, mask, l, all, raw, dtm, model, history, aff, batches, pred, input, c1, out)
                     gc.collect()
+                    tf.keras.backend.clear_session()
 print('DONE')
