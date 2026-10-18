@@ -5,7 +5,7 @@ This repository provides the code used for the analysis detailed in the manuscri
 This repository includes both R and Python code. The scripts are described below, and are generally run in this order to reproduce the analysis.
 
 * **R/terrain_attributes.R** <br>
-This script is used to generate terrain parameters from the resampled 5 m Ponui Island DTM (provided within data/ponui_dtm_setnull_5m.tif). The original DTM is made available by Toitū Te Whenua Land Information New Zealand. <br> <br>
+This script is used to generate terrain parameters from the resampled 5 m Ponui Island DTM (provided within data/ponui_dtm_setnull_agg5_ext.tif). The original DTM is made available by Toitū Te Whenua Land Information New Zealand. <br> <br>
 *Toitū Te Whenua Land Information New Zealand, 2021. Auckland North LiDAR 1m DEM (2016-2018). https://registry.opendata.aws/nz-elevation/* <br>  
 
 * **R/patches.R** <br>
@@ -20,7 +20,7 @@ This script is used to analyze the results. It loads in predictions, calculates 
 ### Usage
 Follow these steps to run the code and reproduce our results.
 
-1. Download the DTM data available at: https://registry.opendata.aws/nz-elevation/. Resample the 1 m grid to 5 m using mean aggregation (this can be completed in ArcGIS, QGIS, or with the terra package in R). Expand the extent of the 5 m DTM by 100 cells on all sides. We do not provide the original DTM here because of file size, but the 5 m DTM is contained within data/ponui_dtm_setnull_5m.tif <br>
+1. Download the DTM data available at: https://registry.opendata.aws/nz-elevation/. Resample the 1 m grid to 5 m using mean aggregation (this can be completed in ArcGIS, QGIS, or with the terra package in R). Expand the extent of the 5 m DTM by 100 cells on all sides. We do not provide the original DTM here because of file size, but the 5 m DTM is contained within data/ponui_dtm_setnull_agg5_ext.tif <br>
 
 2. Open the R/terrain_attributes.R script. Indicate the file path to the 5 m raster, and the output filepaths at which to save the terrain parameters. Run the script. An example of the terrain parameters generated using the [MultiscaleDTM package](https://github.com/ailich/MultiscaleDTM) in R are shown below. <br>
 
@@ -29,7 +29,7 @@ library(MultiscaleDTM)
 library(terra)
 
 #load the raster
-r <- rast('D:/GIS/Ponui/layers/ponui_dtm_setnull_5m_ext.tif')
+r <- rast('D:/GIS/Ponui/layers/ponui_dtm_setnull_agg5_ext.tif')
 plot(r)
 
 #SCALE 3
@@ -53,7 +53,9 @@ library(terra)
 w=9
 
 #load DTM raster
-dem <- rast('D:/GIS/Ponui/layers/ponui_dtm_setnull_5m.tif')
+#the non-expanded aggregated DTM can be used here
+#the expanded version is necessary for CNN prediction
+dem <- rast('D:/GIS/Ponui/ponui_dtm_setnull_agg5.tif') 
 
 #load terrain attributes calculated with "terrain_attributes.R" script
 stack <- c(
@@ -125,10 +127,11 @@ R2 <- function(y, y_h, na.rm = FALSE){
   1 - (SSres/SStot)
 }
 
+quarantine <- FALSE
 save = TRUE
 
 #load and format results if they exist, otherwise read from csv and save
-if(save & length(list.files('Rdata/')) > 0){
+if(save & length(list.files('Rdata/', pattern = '.Rdata')) > 0){
   load('Rdata/results.Rdata')
 } else {
   l <- list()
@@ -140,13 +143,30 @@ if(save & length(list.files('Rdata/')) > 0){
             for(p in act){
               for(r in scale){
                 for(s in norm){
-                  df <- read_csv(
-                    paste0('D:/GIS/Ponui/results/scale', r, '_', s, '/', paste(j, '81', k, m, o, i, p, sep = '_'), '.csv'), 
-                    col_names = FALSE,
-                    show_col_types = FALSE
+                  df <- data.frame(obs=NA, pred1=NA, pred2=NA, pred3=NA)
+                  file <- paste0('D:/GIS/Ponui/REVISION/results/scale', r, '_', s, '/', paste(j, '81', k, m, o, i, p, sep = '_'), '.csv')
+                  try(
+                    df <- read_csv(
+                      file, 
+                      col_names = FALSE,
+                      show_col_types = FALSE
+                    ),
+                    silent = TRUE
                   )
                   
-                  names(df) <- c('obs', 'pred')
+                  names(df) <- c('obs', 'pred1', 'pred2', 'pred3')
+                  
+                  r2_1 <- R2(df$obs, df$pred1)
+                  r2_2 <- R2(df$obs, df$pred2)
+                  r2_3 <- R2(df$obs, df$pred3)
+                  
+                  if(quarantine){
+                    if(r2_1 < quarantine_limit | r2_2 < quarantine_limit | r2_3 < quarantine_limit | is.na(r2_1) | is.na(r2_2) | is.na(r2_3)){
+                      message("Moving file to quarantine: ", file)
+                      dir.create(paste0(quarantine_path, paste0('scale', r, '_', s, '/')), warnings = FALSE)
+                      file.rename(file, paste0(quarantine_path, paste0('scale', r, '_', s, '/', paste(j, '81', k, m, o, i, p, sep = '_'), '.csv')))  
+                    }
+                  }
                   
                   l[[length(l) + 1]] <- data.frame(
                     var = j,
@@ -157,8 +177,11 @@ if(save & length(list.files('Rdata/')) > 0){
                     act = p,
                     scale = r,
                     norm = s,
-                    R2 = R2(df$obs, df$pred), 
-                    RMSE = RMSE(df$obs, df$pred)
+                    R2_1 = r2_1,
+                    R2_2 = r2_2,
+                    R2_3 = r2_3,
+                    R2 = mean(c(r2_1, r2_2, r2_3), na.rm = TRUE),
+                    SD = sd(c(r2_1, r2_2, r2_3), na.rm = TRUE)
                   )
                   rm(df)
                 }
@@ -171,41 +194,60 @@ if(save & length(list.files('Rdata/')) > 0){
   }
   l <- do.call(rbind, l)
   if(save){
-    save(l, file = 'D:/GitHub/terrain_learning/R/Rdata/results.Rdata')
+    save(l, file = 'Rdata/results.Rdata')
   }
 }
 
 #this function allows for quickly subsetting the results by the desired hyperparameters
 subsetter <- function(
     df,
-    filt = c(16, 32, 64, 128),
+    filt = c(16, 64, 128),
     var = c('qslope', 'qeastness', 'meanc', 'tpi', 'adjSD'),
-    w = c(3, 9, 27, 81),
+    p = c(3, 9, 27, 81),
     n = c(100, 1000, 10000),
     d = c(1, 2, 3),
     act = 'PReLU',
-    scale = c(3, 9),
-    norm = c('normzero', 'normmean', 'global', 'sdmean')
+    w = c(3, 9),
+    norm = c('normzero', 'normmean', 'global', 'sdmean'),
+    converge = c(0, 1)
 ){
-  df <- df[df$filt %in% filt & df$var %in% var & df$w %in% w & df$n %in% n & df$d %in% d & df$act %in% act & df$scale %in% scale & df$norm %in% norm, ]
+  df <- df[df$filt %in% filt & df$var %in% var & df$p %in% p & df$n %in% n & df$d %in% d & df$act %in% act & df$w %in% w & df$norm %in% norm & df$converge %in% converge, ]
 }
 
-l$scale_diff <- abs(l$w - l$scale) #calculate the absolute scale difference
-l$R2[l$R2 < -2] <- NA #consider any R2 values less than -2 to be non-converged
+#fix names to match manuscript
+names(l)[names(l) == 'w'] <- 'p'
+names(l)[names(l) == 'scale'] <- 'w'
+l$scale_diff <- abs(l$p - l$w) #calculate the absolute scale difference
+
+#label non-converged runs
+l$converge <- ifelse(l$R2_1 < -0.5 | l$R2_2 < -0.5 | l$R2_3 < -0.5, 0, 1)
+
+#set non-converged runs to NA
+l$R2_1[l$R2_1 < -0.5] <- NA
+l$R2_2[l$R2_2 < -0.5] <- NA
+l$R2_3[l$R2_3 < -0.5] <- NA
+
+#calculate mean R2 and SD across the three runs
+l$R2 <- apply(l[ ,c('R2_1', 'R2_2', 'R2_3')], 1, mean, na.rm = TRUE)
+l$SD <- apply(l[ ,c('R2_1', 'R2_2', 'R2_3')], 1, sd, na.rm = TRUE)
+
+#makre sure all NAs are coded properly
+l[l == 'NaN'] <- NA
 ```
 
 After the results have been loaded, any parts of the analysis can be performed by using the `subsetter()` function to isolate a slice of the results and passing that slice to the analysis or plotting code. An example below shows the generation of Figure 8 in the manuscript.
 
 ```
-df <- subsetter(df = l, filt = 32, d = 2, norm = c('normzero', 'global', 'sdmean'), scale = 3, w = 3)
+df <- subsetter(df = l, filt = 64, d = 2, norm = c('normzero', 'global', 'sdmean'), w = 3, p = 3)
 df$var <- factor(df$var, levels = c('adjSD', 'qeastness', 'meanc', 'qslope', 'tpi'), labels = c("AdjSD", "Eastness", "Mean curve", "Slope", "TPI"))
 df$norm <- factor(df$norm, levels = c('global', 'normzero', 'sdmean'), labels = c("Global", "Local", "Mean centre"))
+
 ggplot(df, aes(x = n, y = R2, col = factor(norm), shape = factor(norm))) +
   facet_wrap(~var, ncol = 1, labeller = labeller(var = label_value), strip.position = 'right') +
   geom_abline(intercept=0, slope = 0, col = 'black') +
   geom_line() +
   geom_point(size = 2.5) +
-  geom_point(data = df[(df$norm == 'Mean centre' | df$norm == 'Global') & df$var == 'Slope' & df$w == 3 & df$n == 100, ], size = 2.5, col = 'red', show.legend = FALSE) +
+  geom_point(data = df[(df$norm == 'Mean centre' | df$norm == 'Global') & df$var == 'Slope' & df$n == 100, ], size = 2.5, col = 'red', show.legend = FALSE) +
   scale_x_continuous(breaks = c(100, 1000, 10000)) +
   labs(
     x = 'Sample size (n)',
@@ -220,8 +262,9 @@ ggplot(df, aes(x = n, y = R2, col = factor(norm), shape = factor(norm))) +
     text = element_text(size = 8),
     axis.title = element_text(size = 10),
     axis.line.y = element_line(color = 'black', size = 0.5),
+    plot.title = element_text(hjust = 0),
     panel.grid.minor.x = element_blank()
   )
 ```
 
-<img width="450" height="675" alt="part3_norm_3" src="https://github.com/user-attachments/assets/86e24084-bbaf-4b26-a66e-413d11a8036d" />
+<img width="450" height="675" alt="part3_norm_3" src="figs/part3_norm_3.png" />
